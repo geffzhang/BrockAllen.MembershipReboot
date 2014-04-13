@@ -117,3 +117,5 @@ The samples use Entity Framework and SQL Server Compact. You don't need to and c
 ## Documentation
 
 There is preliminary documentation [here](https://github.com/brockallen/BrockAllen.MembershipReboot/wiki).
+
+http://www.codeproject.com/Articles/639458/Claims-Based-Authentication-and-Authorization
