@@ -507,6 +507,15 @@ namespace BrockAllen.MembershipReboot.Test.AccountService
         }
 
         [TestMethod]
+        public void CreateAccount_AllowAccountToBePassedIn()
+        {
+            MyUserAccount acct = new MyUserAccount();
+            var result = subject.CreateAccount("tenant", "user", "pass", "user@email.com", null, null, acct);
+            Assert.AreSame(acct, result);
+        }
+
+
+        [TestMethod]
         public void CreateMethod_UsernameStartsOrEndNonLetterOrDigit_FailsValidation()
         {
             try
@@ -563,6 +572,24 @@ namespace BrockAllen.MembershipReboot.Test.AccountService
             {
                 Assert.AreEqual(Resources.ValidationMessages.UsernameCanOnlyStartOrEndWithLetterOrDigit, ex.Message);
             }
+            try
+            {
+                subject.CreateAccount("test'", "pass", "test@test.com");
+                Assert.Fail();
+            }
+            catch (ValidationException ex)
+            {
+                Assert.AreEqual(Resources.ValidationMessages.UsernameCanOnlyStartOrEndWithLetterOrDigit, ex.Message);
+            }
+            try
+            {
+                subject.CreateAccount("'test", "pass", "test@test.com");
+                Assert.Fail();
+            }
+            catch (ValidationException ex)
+            {
+                Assert.AreEqual(Resources.ValidationMessages.UsernameCanOnlyStartOrEndWithLetterOrDigit, ex.Message);
+            }
         }
         
         [TestMethod]
@@ -584,6 +611,11 @@ namespace BrockAllen.MembershipReboot.Test.AccountService
         public void CreateMethod_UsernameContainsDigits_Succeeds()
         {
             subject.CreateAccount("123", "pass", "test@test.com");
+        }
+        [TestMethod]
+        public void CreateMethod_UsernameContainsSingleQuote_Succeeds()
+        {
+            subject.CreateAccount("te'st", "pass", "test@test.com");
         }
         [TestMethod]
         public void CreateMethod_UsernameContainsLetters_Succeeds()
@@ -817,6 +849,34 @@ namespace BrockAllen.MembershipReboot.Test.AccountService
             try
             {
                 subject.DeleteAccount(Guid.NewGuid());
+                Assert.Fail();
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+
+        [TestMethod]
+        public void CloseAccount_ClosesAccount()
+        {
+            var now = new DateTime(2012, 2, 3, 4, 5, 6);
+            subject.Now = now;
+            var acct = subject.CreateAccount("test", "pass", "test@test.com");
+            Assert.IsNotNull(repository.GetByID(acct.ID));
+            subject.CloseAccount(acct.ID);
+
+            acct = repository.GetByID(acct.ID);
+            Assert.IsTrue(acct.IsAccountClosed);
+            Assert.IsNotNull(acct.AccountClosed);
+            Assert.AreEqual(now, acct.AccountClosed.Value);
+        }
+
+        [TestMethod]
+        public void CloseAccount_InvalidAccountID_Throws()
+        {
+            try
+            {
+                subject.CloseAccount(Guid.NewGuid());
                 Assert.Fail();
             }
             catch (ArgumentException)

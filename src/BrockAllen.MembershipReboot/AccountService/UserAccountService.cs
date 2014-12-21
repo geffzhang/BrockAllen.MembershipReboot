@@ -17,7 +17,7 @@ namespace BrockAllen.MembershipReboot
     {
         public MembershipRebootConfiguration<TAccount> Configuration { get; set; }
 
-        IUserAccountRepository<TAccount> userRepository;
+        EventBusUserAccountRepository<TAccount> userRepository;
 
         Lazy<AggregateValidator<TAccount>> usernameValidator;
         Lazy<AggregateValidator<TAccount>> emailValidator;
@@ -133,6 +133,14 @@ namespace BrockAllen.MembershipReboot
         {
             commandBus.Execute(cmd);
             Configuration.CommandBus.Execute(cmd);
+        }
+
+        public virtual IUserAccountQuery<TAccount> Query 
+        {
+            get
+            {
+                return this.userRepository.inner as IUserAccountQuery<TAccount>;
+            } 
         }
 
         public virtual string GetValidationMessage(string id)
@@ -403,7 +411,12 @@ namespace BrockAllen.MembershipReboot
             return CreateAccount(null, username, password, email, id, dateCreated);
         }
 
-        public virtual TAccount CreateAccount(string tenant, string username, string password, string email, Guid? id = null, DateTime? dateCreated = null)
+        public virtual TAccount CreateUserAccount()
+        {
+            return this.userRepository.Create();
+        }
+
+        public virtual TAccount CreateAccount(string tenant, string username, string password, string email, Guid? id = null, DateTime? dateCreated = null, TAccount account = null)
         {
             if (Configuration.EmailIsUsername)
             {
@@ -419,7 +432,7 @@ namespace BrockAllen.MembershipReboot
 
             Tracing.Information("[UserAccountService.CreateAccount] called: {0}, {1}, {2}", tenant, username, email);
 
-            var account = this.userRepository.Create();
+            account = account ?? CreateUserAccount();
             Init(account, tenant, username, password, email, id, dateCreated);
 
             ValidateEmail(account, email);
@@ -612,6 +625,16 @@ namespace BrockAllen.MembershipReboot
             }
         }
 
+        public virtual void CloseAccount(Guid accountID)
+        {
+            Tracing.Information("[UserAccountService.CloseAccount] called: {0}", accountID);
+
+            var account = this.GetByID(accountID);
+            if (account == null) throw new ArgumentException("Invalid AccountID");
+
+            CloseAccount(account);
+        }
+        
         protected virtual void CloseAccount(TAccount account)
         {
             if (account == null) throw new ArgumentNullException("account");
@@ -1965,7 +1988,7 @@ namespace BrockAllen.MembershipReboot
                 return true;
             }
 
-            if (account.VerificationKeySent < UtcNow.AddMinutes(-MembershipRebootConstants.UserAccount.VerificationKeyStaleDurationMinutes))
+            if (account.VerificationKeySent < UtcNow.Subtract(Configuration.VerificationKeyLifetime))
             {
                 return true;
             }
@@ -2772,6 +2795,15 @@ namespace BrockAllen.MembershipReboot
             Tracing.Verbose("[UserAccountService.RemoveTwoFactorAuthTokens] tokens removed: {0}", tokens.Length);
         }
 
+        public virtual IEnumerable<Claim> MapClaims(TAccount account)
+        {
+            if (account == null) throw new ArgumentNullException("account");
+
+            var cmd = new MapClaimsFromAccount<TAccount> { Account = account };
+            ExecuteCommand(cmd);
+            return cmd.MappedClaims ?? Enumerable.Empty<Claim>();
+        }
+        
         internal protected virtual DateTime UtcNow
         {
             get
